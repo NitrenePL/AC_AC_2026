@@ -20,10 +20,10 @@ void KeyAction(uint16_t key)
 
             break;
         case 5:
-            
+            M += 0.1f;
             break;
         case 6:
-
+            M -= 0.1f;
             break;
         case 7:
 

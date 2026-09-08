@@ -7,7 +7,7 @@ void EPWM_Start(void)
 {
     EPWM_clearTripZoneFlag(EPWMA_BASE, EPWM_TZ_FLAG_OST);
     EPWM_clearTripZoneFlag(EPWMB_BASE, EPWM_TZ_FLAG_OST);
-    EPWM_clearTripZoneFlag(EPWMC_BASE, EPWM_TZ_FLAG_OST);
+    //EPWM_clearTripZoneFlag(EPWMC_BASE, EPWM_TZ_FLAG_OST);
     Open = 1;
 }
 
@@ -45,8 +45,6 @@ void SPWM(float D)
     else if (D <= -0.99f)
         D = -0.99f;
 
-    // EPWM_OUTPUTA_duty(0.5f + 0.5f * D);
-    // EPWM_OUTPUTB_duty(0.5f - 0.5f * D);
     EPWM_setCounterCompareValue(EPWMA_BASE, EPWM_COUNTER_COMPARE_A, (uint16_t)((0.5f + 0.5f * D) * PWM_PRD));
     EPWM_setCounterCompareValue(EPWMB_BASE, EPWM_COUNTER_COMPARE_A, (uint16_t)((0.5f - 0.5f * D) * PWM_PRD));
 }
