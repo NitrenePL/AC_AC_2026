@@ -18,11 +18,12 @@
 // 高速RAM变量放在这里, 例如电流环、滤波器等
 float32_t theta_ref = 0.f; // 参考相位
 float32_t M = 0.2f;
+float32_t Uin,Iin,Udc;
 float32_t Ud, Uq;
 float32_t Id, Iq;
 float32_t Ualpha, Ubeta;
 float32_t Ialpha, Ibeta;
-float32_t I_SET;
+
 #pragma SET_DATA_SECTION()
 
 #pragma SET_DATA_SECTION("logVariables")
@@ -68,14 +69,30 @@ __interrupt void INT_myCPUTIMER0_ISR(void)
 RAMFUNC __interrupt void ADC_SamplingISR(void)
 {
     static int i;
+    /*
+        测量的拟合，对于一个单相整流，我们需要交流电压测量提供电网相位、作为控制前馈
+        需要交流电流测量做双环控制，直流电压测量控制母线电压为后级三相逆变做准备。
+        而后级三相逆变简单点可以只使用有效值控制，那么只需要一到两个交流电压测量。
+
+        首先拟合直流电压，在逆变时直接改变输入电压，不需要开环逆变即可拟合。
+        在global.h中将Udc等变量添加为全局，并显示在屏幕上。
+        可以添加一些滤波以追求更好的拟合效果，在进入闭环控制时可以去掉。
+
+        直流电压测量连接A0；
+    */
+    static float32_t filter,last_filter;
+    float32_t temp = (float32_t)ADC_readResult(ADCARESULT_BASE, ADC_SOC_NUMBER0);
+    filter = 0.01f*temp + 0.99f*last_filter;
+    last_filter = filter;
+    Udc = filter;
+    float32_t inst_H = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER0);
+    float32_t inst_L = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER1);
+    Uin = (inst_L - inst_H);
+    inst_H = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER2);
+    inst_L = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER3);
+    Iin = (inst_L - inst_H);
     if (MODE == 1)
     {
-        /*
-        2026年A题 AC-AC变换电路
-        在整流之前，需要先离网逆变对测量模块进行拟合。
-        测试开环逆变，先产生相位参考theta_ref，使用单极倍频SPWM调制产生正弦波。
-        并通过改变调制比M改变输出电压测试逆变功能
-        */
         theta_ref += CONST_2PI_32 * 0.0025f;
         if (theta_ref >= 2.0f * CONST_2PI_32)
         {

@@ -82,7 +82,7 @@ static void OLED_Display_UpdatePage0(void)
     sprintf(oledLine[1], "MODE:%-10u", MODE);
     OLED_Display_UpdateLine(1U, oledLine[1]);
 
-    OLED_Display_FormatFixed2(oledLine[2], "xx", 0);
+    OLED_Display_FormatFixed2(oledLine[2], "Udc", Udc);
     OLED_Display_UpdateLine(2U, oledLine[2]);
 
     OLED_Display_FormatFixed2(oledLine[3], "xx", 0);
