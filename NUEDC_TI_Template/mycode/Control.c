@@ -74,20 +74,22 @@ RAMFUNC __interrupt void ADC_SamplingISR(void)
         需要交流电流测量做双环控制，直流电压测量控制母线电压为后级三相逆变做准备。
         而后级三相逆变简单点可以只使用有效值控制，那么只需要一到两个交流电压测量。
 
-        首先拟合直流电压，在逆变时直接改变输入电压，不需要开环逆变即可拟合。
-        在global.h中将Udc等变量添加为全局，并显示在屏幕上。
-        可以添加一些滤波以追求更好的拟合效果，在进入闭环控制时可以去掉。
+        拟合完直流电压测量后，便拟合交流电压测量。在开环逆变下可以采用有效值拟合。
+        将获得的有效值显示在屏幕上。
 
-        直流电压测量连接A0；
+        需要建立RMS结构体（工程初始化时已存在）
+        在Setup()中初始化
+        在中断中计算有效值
+
+        UAC+接了B0,UAC-接了B1
     */
-    static float32_t filter,last_filter;
+    //static float32_t filter,last_filter;
     float32_t temp = (float32_t)ADC_readResult(ADCARESULT_BASE, ADC_SOC_NUMBER0);
-    filter = 0.01f*temp + 0.99f*last_filter;
-    last_filter = filter;
-    Udc = filter;
+    Udc = 0.016934788f*temp - 0.125286457f;
     float32_t inst_H = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER0);
     float32_t inst_L = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER1);
     Uin = (inst_L - inst_H);
+    Uan_rms = RMS_Calc(&Uan_RMS, Uin);//也需要在global.h中声明这个变量
     inst_H = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER2);
     inst_L = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER3);
     Iin = (inst_L - inst_H);
@@ -137,6 +139,8 @@ void Setup(void)
     Interrupt_enable(INT_ADCA1); // 使能主控中断
 
     OLED_Display_Init();
+
+    RMS_Init(&Uan_RMS);
 }
 
 void MyProtect(void)
