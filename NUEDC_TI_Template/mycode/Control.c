@@ -82,17 +82,40 @@ RAMFUNC __interrupt void ADC_SamplingISR(void)
         在中断中计算有效值
 
         UAC+接了B0,UAC-接了B1
+
+        为了最后闭环，防止单片机从电压测量获得的信息与实际电网电压相位相反，因此建议进行一个极性的核对
+        （软件和硬件接线都会翻转相位，因此最好校验一下）
+        利用我们逆变使用的相位对采样的Uin进行dq变换，Ud为正数值上约等于电压峰值，Uq接近于0便是正确的
+        将d轴打印在屏幕上
     */
     //static float32_t filter,last_filter;
     float32_t temp = (float32_t)ADC_readResult(ADCARESULT_BASE, ADC_SOC_NUMBER0);
     Udc = 0.016934788f*temp - 0.125286457f;
     float32_t inst_H = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER0);
     float32_t inst_L = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER1);
-    Uin = (inst_L - inst_H);
-    Uan_rms = RMS_Calc(&Uan_RMS, Uin);//也需要在global.h中声明这个变量
+    Uin = 0.016232948f*(inst_H - inst_L) + 0.004130499f;
+    //按照这个思路L-H得到的d轴是负数，因此正确的极性应该是H-L（这里已经修改了）
+
     inst_H = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER2);
     inst_L = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER3);
     Iin = (inst_L - inst_H);
+    
+    Ualpha = Uin;
+    U_data[i] = Ualpha;
+    //获取beta轴
+    if (i > 100)
+    {
+        Ubeta = U_data[i - 100];
+        Ibeta = I_data[i - 100];
+    }
+    else
+    {
+        Ubeta = U_data[i + 300];
+        Ibeta = I_data[i + 300];
+    }
+    //变换
+    ab_to_dq(Ualpha, Ubeta, theta_ref, &Ud, &Uq);
+    
     if (MODE == 1)
     {
         theta_ref += CONST_2PI_32 * 0.0025f;
