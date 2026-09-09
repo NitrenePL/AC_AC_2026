@@ -74,34 +74,35 @@ RAMFUNC __interrupt void ADC_SamplingISR(void)
         需要交流电流测量做双环控制，直流电压测量控制母线电压为后级三相逆变做准备。
         而后级三相逆变简单点可以只使用有效值控制，那么只需要一到两个交流电压测量。
 
-        拟合完直流电压测量后，便拟合交流电压测量。在开环逆变下可以采用有效值拟合。
-        将获得的有效值显示在屏幕上。
+        拟合完交流电压测量。然后就是交流电流测量。
+        单相底板上有两个交流电流测量，只需要用一个，选择INL的那个。
+        利用锁相环获取开环逆变的电压相位，然后利用这个相位对采样电流进行dq变换
+        将获得的d轴q轴电流显示在屏幕上。d轴对应电流峰值，q轴接近于0.
 
-        需要建立RMS结构体（工程初始化时已存在）
-        在Setup()中初始化
-        在中断中计算有效值
+        关于电流测量的校准，前一步中完善了电压的极性，那么我们以电压测量获得的相位（这个相位是和theta_ref一致的）
+        对电流进行变换，对于阻性负载，q轴就应该接近于0
 
-        UAC+接了B0,UAC-接了B1
+        而后面我们将进行整流，那么规定整流的电流方向为正，那么在逆变时我们便要保证变换出来的d轴电流是负的
+        （功率流向所决定的），并且d轴电流的绝对值对应交流电流的峰值
 
-        为了最后闭环，防止单片机从电压测量获得的信息与实际电网电压相位相反，因此建议进行一个极性的核对
-        （软件和硬件接线都会翻转相位，因此最好校验一下）
-        利用我们逆变使用的相位对采样的Uin进行dq变换，Ud为正数值上约等于电压峰值，Uq接近于0便是正确的
-        将d轴打印在屏幕上
+        IOUT_L+接了B2,IOUT_L-接了B3
     */
-    //static float32_t filter,last_filter;
+    
     float32_t temp = (float32_t)ADC_readResult(ADCARESULT_BASE, ADC_SOC_NUMBER0);
     Udc = 0.016934788f*temp - 0.125286457f;
     float32_t inst_H = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER0);
     float32_t inst_L = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER1);
     Uin = 0.016232948f*(inst_H - inst_L) + 0.004130499f;
-    //按照这个思路L-H得到的d轴是负数，因此正确的极性应该是H-L（这里已经修改了）
 
     inst_H = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER2);
     inst_L = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER3);
     Iin = (inst_L - inst_H);
-    
+    //逆变核验此时d轴是负的，因此不需要改，保持L-H
+    PLL_Calc(Uin);
     Ualpha = Uin;
+    Ialpha = Iin;
     U_data[i] = Ualpha;
+    I_data[i] = Ialpha;
     //获取beta轴
     if (i > 100)
     {
@@ -114,8 +115,14 @@ RAMFUNC __interrupt void ADC_SamplingISR(void)
         Ibeta = I_data[i + 300];
     }
     //变换
-    ab_to_dq(Ualpha, Ubeta, theta_ref, &Ud, &Uq);
-    
+    //ab_to_dq(Ualpha, Ubeta, theta_ref, &Ud, &Uq);
+    ab_to_dq(Ialpha, Ibeta, theta, &Id, &Iq);
+    //注意是theta
+    static float32_t filter,last_filter;
+    filter = 0.01f*Id + 0.99f*last_filter;
+    last_filter = filter;
+    Id = filter;
+    //进行滤波方便拟合测量，闭环时应去掉。
     if (MODE == 1)
     {
         theta_ref += CONST_2PI_32 * 0.0025f;
