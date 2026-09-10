@@ -106,27 +106,21 @@ RAMFUNC __interrupt void ADC_SamplingISR(void)
     if (MODE == 1 && PLL_Locked == 1)//锁相成功后开波
     {
         /*
-        单相整流侧控制采用传统的dq解耦的双环控制，为了后级三相逆变的需要，我们外环使用直流电压环，内环交流电流环。
-        在调外环之前，我们先调单电流内环实现整流，此时建议直流侧加上一个负载，并联一个60V的直流电源。
-        上电顺序为先开启直流电源，随后开启交流输入，再开始整流
-        那么如果设定但电流环的d轴目标值为1.414，q轴为0，则输入功率为36W(题目要求为36V输入)
-        需要保证在整流开始前直流电源输送给负载的功率大于输入功率（例如上面说的36W，如果目标值是2.828，则需要保证负载上的功率大于72W）
-        只有这样，在开始整流后，功率才不会向直流电源倒灌。
-
-        上面变换的相角都要是锁相得到的角度
-        在syscfg中建立两个PI控制器
+        在完成了但电流环后，便需要开始双环的调试。
+        在syscfg中建立PI控制器
         Setup中初始化控制器
-
-        可以使用示波器观看电流测量的信号判断PI参数怎么样。
-        会附Kp等于1和4的电流瞬时变化图
+        此时是双环，因此直流侧的直流电源需要去掉，并且直流电压环的输出作为d轴电流环的参考。
+        同样可以借助示波器查看直流电流测量的输出，观察响应调整参数。
         */
         theta_ref += CONST_2PI_32 * 0.0025f;
         if (theta_ref >= 2.0f * CONST_2PI_32)
         {
             theta_ref -= 2.0f * CONST_2PI_32;
         }
-        float32_t Usd = Ud + Iq*100*CONST_2PI_32*0.002f - DCL_runPI_C3(&PI_Id, 2.828f, Id);
+        float32_t Iin_Set = DCL_runPI_C3(&PI_Udc, 60.f, Udc);
+        float32_t Usd = Ud + Iq*100*CONST_2PI_32*0.002f - DCL_runPI_C3(&PI_Id, Iin_Set, Id);
         float32_t Usq = Uq - Id*100*CONST_2PI_32*0.002f - DCL_runPI_C3(&PI_Iq, 0.f, Iq);
+        //这里补充说明一下，我们使用的是C3，没有积分限幅，C5才有。可以查阅TI官方的DCL文档
         float32_t Usalpha,Usbeta;
         dq_to_AlphaBeta(&Usalpha, &Usbeta, theta, Usd, Usq);
         SPWM(Usalpha / 60.f);
@@ -160,6 +154,7 @@ void Setup(void)
     // 控制器参数计算&初始化
     DCL_resetPI(&PI_Id);
     DCL_resetPI(&PI_Iq);
+    DCL_resetPI(&PI_Udc);
     // 锁相环初始化
     PLL_Init();
 
