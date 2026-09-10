@@ -69,34 +69,14 @@ __interrupt void INT_myCPUTIMER0_ISR(void)
 RAMFUNC __interrupt void ADC_SamplingISR(void)
 {
     static int i;
-    /*
-        测量的拟合，对于一个单相整流，我们需要交流电压测量提供电网相位、作为控制前馈
-        需要交流电流测量做双环控制，直流电压测量控制母线电压为后级三相逆变做准备。
-        而后级三相逆变简单点可以只使用有效值控制，那么只需要一到两个交流电压测量。
-
-        拟合完交流电压测量。然后就是交流电流测量。
-        单相底板上有两个交流电流测量，只需要用一个，选择INL的那个。
-        利用锁相环获取开环逆变的电压相位，然后利用这个相位对采样电流进行dq变换
-        将获得的d轴q轴电流显示在屏幕上。d轴对应电流峰值，q轴接近于0.
-
-        关于电流测量的校准，前一步中完善了电压的极性，那么我们以电压测量获得的相位（这个相位是和theta_ref一致的）
-        对电流进行变换，对于阻性负载，q轴就应该接近于0
-
-        而后面我们将进行整流，那么规定整流的电流方向为正，那么在逆变时我们便要保证变换出来的d轴电流是负的
-        （功率流向所决定的），并且d轴电流的绝对值对应交流电流的峰值
-
-        IOUT_L+接了B2,IOUT_L-接了B3
-    */
-    
     float32_t temp = (float32_t)ADC_readResult(ADCARESULT_BASE, ADC_SOC_NUMBER0);
     Udc = 0.016934788f*temp - 0.125286457f;
     float32_t inst_H = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER0);
     float32_t inst_L = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER1);
     Uin = 0.016232948f*(inst_H - inst_L) + 0.004130499f;
-
     inst_H = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER2);
     inst_L = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER3);
-    Iin = (inst_L - inst_H);
+    Iin = 0.001856507f*(inst_L- inst_H) + 0.000015907f;
     //逆变核验此时d轴是负的，因此不需要改，保持L-H
     PLL_Calc(Uin);
     Ualpha = Uin;
@@ -115,22 +95,41 @@ RAMFUNC __interrupt void ADC_SamplingISR(void)
         Ibeta = I_data[i + 300];
     }
     //变换
-    //ab_to_dq(Ualpha, Ubeta, theta_ref, &Ud, &Uq);
+    ab_to_dq(Ualpha, Ubeta, theta, &Ud, &Uq);
     ab_to_dq(Ialpha, Ibeta, theta, &Id, &Iq);
     //注意是theta
-    static float32_t filter,last_filter;
-    filter = 0.01f*Id + 0.99f*last_filter;
-    last_filter = filter;
-    Id = filter;
+    // static float32_t filter,last_filter;
+    // filter = 0.01f*Id + 0.99f*last_filter;
+    // last_filter = filter;
+    // Id = filter;
     //进行滤波方便拟合测量，闭环时应去掉。
-    if (MODE == 1)
+    if (MODE == 1 && PLL_Locked == 1)//锁相成功后开波
     {
+        /*
+        单相整流侧控制采用传统的dq解耦的双环控制，为了后级三相逆变的需要，我们外环使用直流电压环，内环交流电流环。
+        在调外环之前，我们先调单电流内环实现整流，此时建议直流侧加上一个负载，并联一个60V的直流电源。
+        上电顺序为先开启直流电源，随后开启交流输入，再开始整流
+        那么如果设定但电流环的d轴目标值为1.414，q轴为0，则输入功率为36W(题目要求为36V输入)
+        需要保证在整流开始前直流电源输送给负载的功率大于输入功率（例如上面说的36W，如果目标值是2.828，则需要保证负载上的功率大于72W）
+        只有这样，在开始整流后，功率才不会向直流电源倒灌。
+
+        上面变换的相角都要是锁相得到的角度
+        在syscfg中建立两个PI控制器
+        Setup中初始化控制器
+
+        可以使用示波器观看电流测量的信号判断PI参数怎么样。
+        会附Kp等于1和4的电流瞬时变化图
+        */
         theta_ref += CONST_2PI_32 * 0.0025f;
         if (theta_ref >= 2.0f * CONST_2PI_32)
         {
             theta_ref -= 2.0f * CONST_2PI_32;
         }
-        SPWM(M * __cos(theta_ref));
+        float32_t Usd = Ud + Iq*100*CONST_2PI_32*0.002f - DCL_runPI_C3(&PI_Id, 2.828f, Id);
+        float32_t Usq = Uq - Id*100*CONST_2PI_32*0.002f - DCL_runPI_C3(&PI_Iq, 0.f, Iq);
+        float32_t Usalpha,Usbeta;
+        dq_to_AlphaBeta(&Usalpha, &Usbeta, theta, Usd, Usq);
+        SPWM(Usalpha / 60.f);
         EPWM_Start();
     }
     else if (MODE == 2)
@@ -159,7 +158,8 @@ void Setup(void)
     EPWM_Stop();
 
     // 控制器参数计算&初始化
-
+    DCL_resetPI(&PI_Id);
+    DCL_resetPI(&PI_Iq);
     // 锁相环初始化
     PLL_Init();
 

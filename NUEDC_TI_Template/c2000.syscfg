@@ -37,6 +37,7 @@ const i2c         = scripting.addModule("/driverlib/i2c.js", {}, false);
 const i2c1        = i2c.addInstance();
 const controller  = scripting.addModule("/libraries/control/dcl/controller.js", {}, false);
 const controller1 = controller.addInstance();
+const controller2 = controller.addInstance();
 const logger      = scripting.addModule("/libraries/control/dcl/logger.js", {}, false);
 const logger1     = logger.addInstance();
 const logger2     = logger.addInstance();
@@ -325,7 +326,23 @@ i2c1.bitCount               = "I2C_BITCOUNT_8";
 i2c1.i2c.i2c_sdaPin.$assign = "GPIO26";
 i2c1.i2c.i2c_sclPin.$assign = "GPIO27";
 
-controller1.$name = "myCONTROLLER0";
+controller1.$name            = "PI_Id";
+controller1.controllerChoice = "PI";
+controller1.Ki               = "0.0015f";
+controller1.Imax             = "0.004f";
+controller1.Imin             = "-0.004f";
+controller1.Umax             = "20.0f";
+controller1.Umin             = "-20.0f";
+controller1.Kp               = "4.0f";
+
+controller2.controllerChoice = "PI";
+controller2.$name            = "PI_Iq";
+controller2.Ki               = "0.0015f";
+controller2.Imax             = "0.004f";
+controller2.Imin             = "-0.004f";
+controller2.Umax             = "20.0f";
+controller2.Umin             = "-20.0f";
+controller2.Kp               = "4.0f";
 
 logger1.$name     = "myLOGGER0";
 logger1.linkerEn  = true;
