@@ -34,7 +34,7 @@ uint8_t Open = 0;        // 默认关闭
 uint8_t MODE = 0;        // 默认模式0
 uint8_t RECT_ENABLE = 0; // 开启整流
 uint8_t LAST_MODE = 0;
-
+uint8_t MODE_60Hz_30Hz = 0;//0为60Hz，1为30Hz
 
 float32_t U_data[400];
 float32_t I_data[400];
@@ -115,7 +115,7 @@ RAMFUNC __interrupt void ADC_SamplingISR(void)
     {
         /*
         */
-        theta_ref += CONST_2PI_32 * 0.003f;//60Hz
+        theta_ref += CONST_2PI_32 * 0.003f/(1.f + MODE_60Hz_30Hz);//60Hz
         if (theta_ref >= 2.0f * CONST_2PI_32)
         {
             theta_ref -= 2.0f * CONST_2PI_32;

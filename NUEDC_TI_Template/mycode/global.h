@@ -38,6 +38,7 @@ extern "C"
     extern float32_t Uin,Iin,Udc;
 
     extern float32_t Uab_rms,Ubc_rms;
+    extern uint8_t MODE_60Hz_30Hz;
     
 #ifdef __cplusplus
 }

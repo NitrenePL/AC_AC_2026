@@ -17,7 +17,7 @@ void KeyAction(uint16_t key)
             MODE = 2;
             break;
         case 4:
-
+            MODE_60Hz_30Hz = !MODE_60Hz_30Hz;
             break;
         case 5:
             M += 0.1f;
