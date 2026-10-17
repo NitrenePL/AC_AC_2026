@@ -16,7 +16,7 @@
 
 #pragma SET_DATA_SECTION("controlVariables")
 // 高速RAM变量放在这里, 例如电流环、滤波器等
-float32_t theta_ref = 0.f; // 参考相位
+float32_t theta_ref; // 参考相位
 float32_t M = 0.2f;
 float32_t Uin,Iin,Udc;
 float32_t Ud, Uq;
@@ -84,7 +84,7 @@ RAMFUNC __interrupt void ADC_SamplingISR(void)
     U_data[i] = Ualpha;
     I_data[i] = Ialpha;
     //获取beta轴
-    if (i > 100)
+    if (i >= 100)
     {
         Ubeta = U_data[i - 100];
         Ibeta = I_data[i - 100];
@@ -103,16 +103,16 @@ RAMFUNC __interrupt void ADC_SamplingISR(void)
     // last_filter = filter;
     // Id = filter;
     //进行滤波方便拟合测量，闭环时应去掉。
-    if (MODE == 1 && PLL_Locked == 1)//锁相成功后开波
+    if (MODE == 1)//锁相成功后开波
     {
         /*
-        在完成了但电流环后，便需要开始双环的调试。
-        在syscfg中建立PI控制器
-        Setup中初始化控制器
-        此时是双环，因此直流侧的直流电源需要去掉，并且直流电压环的输出作为d轴电流环的参考。
-        同样可以借助示波器查看直流电流测量的输出，观察响应调整参数。
+            调试完前级便开始三相逆变
+            暂时去掉锁相后再开波，用直流电源给三相板供电
+            断开单相板的功率连接
+            输出60Hz三相正弦波，验证完三相对称即完成了三相开环测试。
+            按键修改M可修改电压
         */
-        theta_ref += CONST_2PI_32 * 0.0025f;
+        theta_ref += CONST_2PI_32 * 0.003f;//60Hz
         if (theta_ref >= 2.0f * CONST_2PI_32)
         {
             theta_ref -= 2.0f * CONST_2PI_32;
@@ -124,7 +124,12 @@ RAMFUNC __interrupt void ADC_SamplingISR(void)
         float32_t Usalpha,Usbeta;
         dq_to_AlphaBeta(&Usalpha, &Usbeta, theta, Usd, Usq);
         SPWM(Usalpha / 60.f);
+        float32_t Ua_pu = M * __cos(theta_ref);
+        float32_t Ub_pu = M * __cos(theta_ref - CONST_2PI_32 / 3.f);
+        float32_t Uc_pu = M * __cos(theta_ref + CONST_2PI_32 / 3.f);
+        CB_SVPWM_3Ph_DEF(Ua_pu, Ub_pu, Uc_pu, 0);
         EPWM_Start();
+        EPWM_Start_DEF();
     }
     else if (MODE == 2)
     {
