@@ -85,16 +85,16 @@ static void OLED_Display_UpdatePage0(void)
     OLED_Display_FormatFixed2(oledLine[2], "Udc", Udc);
     OLED_Display_UpdateLine(2U, oledLine[2]);
 
-    OLED_Display_FormatFixed2(oledLine[3], "Uac_rms", Uan_rms);
+    OLED_Display_FormatFixed2(oledLine[3], "Id", Id);
     OLED_Display_UpdateLine(3U, oledLine[3]);
 
-    OLED_Display_FormatFixed2(oledLine[4], "Id", Id);
+    OLED_Display_FormatFixed2(oledLine[4], "Iq", Iq);
     OLED_Display_UpdateLine(4U, oledLine[4]);
 
-    OLED_Display_FormatFixed2(oledLine[5], "Iq", Iq);
+    OLED_Display_FormatFixed2(oledLine[5], "Uab_rms", Uab_rms);
     OLED_Display_UpdateLine(5U, oledLine[5]);
 
-    OLED_Display_FormatFixed2(oledLine[6], "xx", 0);
+    OLED_Display_FormatFixed2(oledLine[6], "Ubc_rms", Ubc_rms);
     OLED_Display_UpdateLine(6U, oledLine[6]);
 }
 

@@ -5,7 +5,7 @@
 #include "math.h"
 #include <stdint.h>
 
-#define RMS_WINDOW_SIZE 400U
+#define RMS_WINDOW_SIZE 2000U
 
 typedef struct
 {

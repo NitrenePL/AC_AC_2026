@@ -37,7 +37,7 @@ extern "C"
     extern float32_t Id, Iq;
     extern float32_t Uin,Iin,Udc;
 
-    extern float32_t Uan_rms;
+    extern float32_t Uab_rms,Ubc_rms;
     
 #ifdef __cplusplus
 }

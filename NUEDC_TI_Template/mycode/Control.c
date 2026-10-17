@@ -38,8 +38,8 @@ uint8_t LAST_MODE = 0;
 float32_t U_data[400];
 float32_t I_data[400];
 
-RMS_Obj Uan_RMS;
-float32_t Uan_rms;
+RMS_Obj Uab_RMS,Ubc_RMS;
+float32_t Uab_rms,Ubc_rms;
 #pragma SET_DATA_SECTION()
 
 // Timer0 中断服务函数 慢速任务 1kHz
@@ -77,7 +77,24 @@ RAMFUNC __interrupt void ADC_SamplingISR(void)
     inst_H = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER2);
     inst_L = (float32_t)ADC_readResult(ADCBRESULT_BASE, ADC_SOC_NUMBER3);
     Iin = 0.001856507f*(inst_L- inst_H) + 0.000015907f;
-    //逆变核验此时d轴是负的，因此不需要改，保持L-H
+    /*
+        在前面建立Uab_rms,Ubc_rms的结构体，并在Setup()中初始化
+        并拟合两个电压测量，这个题目三相只需要简单的有效值闭环即可。
+        由于是有效值拟合，因此测量极性无所谓。
+        Uab连A2,A3
+        Ubc连A4.A5
+        将有效值显示到屏幕上。用excel表格拟合
+        由于是60Hz或者30Hz，有效值计算时便需要注意
+        RMS.h中MS_WINDOW_SIZE改为2000，便可以测量6个周期的60Hz，3个周期30Hz
+    */
+    inst_H =  (float32_t)ADC_readResult(ADCARESULT_BASE, ADC_SOC_NUMBER2);
+    inst_L =  (float32_t)ADC_readResult(ADCARESULT_BASE, ADC_SOC_NUMBER3);
+    float32_t Uab_inst = (inst_H - inst_L);
+    Uab_rms = RMS_Calc(&Uab_RMS, Uab_inst);
+    inst_H =  (float32_t)ADC_readResult(ADCARESULT_BASE, ADC_SOC_NUMBER4);
+    inst_L =  (float32_t)ADC_readResult(ADCARESULT_BASE, ADC_SOC_NUMBER5);
+    float32_t Ubc_inst = (inst_H - inst_L);
+    Ubc_rms = RMS_Calc(&Ubc_RMS, Ubc_inst);
     PLL_Calc(Uin);
     Ualpha = Uin;
     Ialpha = Iin;
@@ -106,11 +123,6 @@ RAMFUNC __interrupt void ADC_SamplingISR(void)
     if (MODE == 1)//锁相成功后开波
     {
         /*
-            调试完前级便开始三相逆变
-            暂时去掉锁相后再开波，用直流电源给三相板供电
-            断开单相板的功率连接
-            输出60Hz三相正弦波，验证完三相对称即完成了三相开环测试。
-            按键修改M可修改电压
         */
         theta_ref += CONST_2PI_32 * 0.003f;//60Hz
         if (theta_ref >= 2.0f * CONST_2PI_32)
@@ -170,7 +182,8 @@ void Setup(void)
 
     OLED_Display_Init();
 
-    RMS_Init(&Uan_RMS);
+    RMS_Init(&Uab_RMS);
+    RMS_Init(&Ubc_RMS);
 }
 
 void MyProtect(void)
